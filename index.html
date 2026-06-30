@@ -276,13 +276,12 @@
         <table>
           <thead>
             <tr>
-              <th style="width:10%">Mã HS</th>
-              <th style="width:16%">Họ và Tên</th>
-              <th style="width:12%">Môn</th>
-              <th style="width:9%">Lớp</th>
-              <th style="width:14%">Trợ giảng</th>
-              <th style="width:22%">Link Zalo</th>
-              <th style="width:17%">Thao tác</th>
+              <th style="width:14%">Mã HS</th>
+              <th style="width:22%">Họ và Tên</th>
+              <th style="width:16%">Môn</th>
+              <th style="width:12%">Lớp</th>
+              <th style="width:20%">Trợ giảng</th>
+              <th style="width:16%">Thao tác</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
@@ -379,11 +378,17 @@ function renderMatchList(list){
 }
 
 function renderCard(s){
-  const zaloBtn = s.linkZalo
-    ? `<a class="btn zalo-btn" href="${escAttrUrl(s.linkZalo)}" target="_blank" rel="noopener noreferrer">
-         <span class="zalo-icon">Z</span> Vào nhóm Zalo của trợ giảng
-       </a>`
-    : `<p class="zalo-missing">Trợ giảng chưa cập nhật link nhóm Zalo. Vui lòng liên hệ trực tiếp.</p>`;
+  const hasTroGiang = String(s.troGiang || '').trim() !== '';
+  let zaloBlock = '';
+  if (hasTroGiang) {
+    zaloBlock = s.zaloLink
+      ? `<div class="zalo-stage">
+           <a class="btn zalo-btn" href="${escAttrUrl(s.zaloLink)}" target="_blank" rel="noopener noreferrer">
+             <span class="zalo-icon">Z</span> Vào nhóm Zalo của trợ giảng
+           </a>
+         </div>`
+      : `<div class="zalo-stage"><p class="zalo-missing">Chưa cập nhật link nhóm Zalo cho trợ giảng này. Vui lòng liên hệ trực tiếp.</p></div>`;
+  }
   resultStage.innerHTML = `
     <div class="id-card">
       <div class="notch"></div>
@@ -398,7 +403,7 @@ function renderCard(s){
         <div class="field"><span class="k">Lớp</span><span class="v">${escapeHtml(s.lop)}</span></div>
         <div class="field"><span class="k">Trợ giảng</span><span class="v">${escapeHtml(s.troGiang)}</span></div>
       </div>
-      <div class="zalo-stage">${zaloBtn}</div>
+      ${zaloBlock}
     </div>`;
 }
 
@@ -479,7 +484,6 @@ function renderTable(){
       <td><input value="${escAttr(s.mon)}" data-field="mon"></td>
       <td><input value="${escAttr(s.lop)}" data-field="lop"></td>
       <td><input value="${escAttr(s.troGiang)}" data-field="troGiang"></td>
-      <td><input value="${escAttr(s.linkZalo)}" data-field="linkZalo" placeholder="https://zalo.me/g/..."></td>
       <td class="actions">
         <button class="icon-btn save-btn">Lưu</button>
         <button class="icon-btn del-btn">Xoá</button>
@@ -501,8 +505,7 @@ async function saveRow(idx, tr){
     hoTen: tr.querySelector('[data-field=hoTen]').value.trim(),
     mon: tr.querySelector('[data-field=mon]').value.trim(),
     lop: tr.querySelector('[data-field=lop]').value.trim(),
-    troGiang: tr.querySelector('[data-field=troGiang]').value.trim(),
-    linkZalo: tr.querySelector('[data-field=linkZalo]').value.trim()
+    troGiang: tr.querySelector('[data-field=troGiang]').value.trim()
   };
   if(updated.maHS.length !== 8){
     showMsg(adminMsg, 'Mã học sinh phải gồm đúng 8 ký tự.', false); return;
@@ -525,7 +528,7 @@ async function deleteRow(idx){
 }
 
 document.getElementById('addRowBtn').onclick = async () => {
-  const newStu = {maHS:'', hoTen:'', mon:'', lop:'', troGiang:'', linkZalo:''};
+  const newStu = {maHS:'', hoTen:'', mon:'', lop:'', troGiang:''};
   students.unshift(newStu);
   renderTable();
 };
@@ -537,8 +540,8 @@ document.getElementById('syncBtn').onclick = async () => {
 
 // ---------- CSV download ----------
 document.getElementById('downloadBtn').onclick = () => {
-  const header = ['MaHS','HoTen','Mon','Lop','TroGiang','LinkZalo'];
-  const rows = students.map(s => [s.maHS,s.hoTen,s.mon,s.lop,s.troGiang,s.linkZalo]);
+  const header = ['MaHS','HoTen','Mon','Lop','TroGiang'];
+  const rows = students.map(s => [s.maHS,s.hoTen,s.mon,s.lop,s.troGiang]);
   const csv = [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
   const blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});
   const link = document.createElement('a');
@@ -579,8 +582,7 @@ function parseCSV(text){
     hoTen: header.findIndex(h => h.includes('hoten') || h.includes('họ')),
     mon: header.findIndex(h => h.includes('mon') || h.includes('môn')),
     lop: header.findIndex(h => h.includes('lop') || h.includes('lớp')),
-    troGiang: header.findIndex(h => h.includes('trogiang') || h.includes('trợ')),
-    linkZalo: header.findIndex(h => h.includes('linkzalo') || h.includes('zalo'))
+    troGiang: header.findIndex(h => h.includes('trogiang') || h.includes('trợ'))
   };
   return lines.slice(1).map(line => {
     const cols = splitCSVLine(line);
@@ -589,8 +591,7 @@ function parseCSV(text){
       hoTen: (cols[idx.hoTen] || '').trim(),
       mon: (cols[idx.mon] || '').trim(),
       lop: (cols[idx.lop] || '').trim(),
-      troGiang: (cols[idx.troGiang] || '').trim(),
-      linkZalo: (cols[idx.linkZalo] || '').trim()
+      troGiang: (cols[idx.troGiang] || '').trim()
     };
   }).filter(s => s.maHS);
 }
