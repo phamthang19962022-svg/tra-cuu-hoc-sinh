@@ -200,6 +200,22 @@
   .table-scroll{overflow-x:auto;}
   .row-count{font-size:12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
   #fileInput{display:none;}
+
+  /* ---- Admin: stats ---- */
+  .stats-wrap{margin-bottom:26px;}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+  .stat-card{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:14px 16px;}
+  .stat-card .num{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:24px;color:var(--navy);}
+  .stat-card .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .stats-tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .stat-table-box{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .stat-table-box h4{margin:0;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:#EEF2FA;color:var(--navy-2);}
+  .stat-table-box table{border:none;border-radius:0;}
+  .stat-table-box td,.stat-table-box th{padding:8px 14px;font-size:13px;}
+  .stat-table-box td.num-cell{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--navy);}
+  .section-toggle{display:flex;gap:8px;margin-bottom:16px;}
+  .section-toggle button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:9px 16px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
+  .section-toggle button.active{background:var(--navy);border-color:var(--navy);color:#fff;}
   footer{margin-top:50px;text-align:center;font-size:12px;color:var(--ink-soft);}
   footer .footer-logo{width:18px;height:18px;border-radius:50%;vertical-align:middle;margin-right:6px;opacity:.8;}
 </style>
@@ -272,7 +288,39 @@
         <button class="btn danger" id="logoutBtn">Đăng xuất</button>
       </div>
       <div id="adminMsg"></div>
-      <div class="table-scroll">
+
+      <div class="section-toggle">
+        <button id="viewListBtn" class="active">Danh sách học sinh</button>
+        <button id="viewStatsBtn">Thống kê</button>
+      </div>
+
+      <div id="statsSection" class="stats-wrap" style="display:none;">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="num" id="statTongHS">0</div><div class="lbl">Tổng số học sinh</div></div>
+          <div class="stat-card"><div class="num" id="statTongLuotTra">0</div><div class="lbl">Tổng lượt tra cứu</div></div>
+          <div class="stat-card"><div class="num" id="statDaTraDu">0</div><div class="lbl">HS đã tra đủ họ tên</div></div>
+        </div>
+        <div class="stats-tables">
+          <div class="stat-table-box">
+            <h4>Theo lớp</h4>
+            <table><tbody id="statByLop"></tbody></table>
+          </div>
+          <div class="stat-table-box">
+            <h4>Theo khối</h4>
+            <table><tbody id="statByKhoi"></tbody></table>
+          </div>
+          <div class="stat-table-box">
+            <h4>Theo môn</h4>
+            <table><tbody id="statByMon"></tbody></table>
+          </div>
+          <div class="stat-table-box">
+            <h4>Số môn học / học sinh</h4>
+            <table><tbody id="statBySoMon"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="listSection" class="table-scroll">
         <table>
           <thead>
             <tr>
@@ -460,7 +508,45 @@ function showMsg(el, text, ok){
   setTimeout(()=>{ if(el.firstChild) el.innerHTML=''; }, 5000);
 }
 
-// ---------- Admin: data table ----------
+// ---------- Admin: stats ----------
+const viewListBtn = document.getElementById('viewListBtn');
+const viewStatsBtn = document.getElementById('viewStatsBtn');
+const statsSection = document.getElementById('statsSection');
+const listSection = document.getElementById('listSection');
+
+viewListBtn.onclick = () => {
+  viewListBtn.classList.add('active'); viewStatsBtn.classList.remove('active');
+  statsSection.style.display = 'none'; listSection.style.display = '';
+};
+viewStatsBtn.onclick = () => {
+  viewStatsBtn.classList.add('active'); viewListBtn.classList.remove('active');
+  listSection.style.display = 'none'; statsSection.style.display = '';
+  loadStats();
+};
+
+function statRowsHtml(obj){
+  const entries = Object.entries(obj).sort((a,b) => b[1]-a[1]);
+  if(entries.length === 0) return `<tr><td colspan="2" style="color:var(--ink-soft);">Chưa có dữ liệu</td></tr>`;
+  return entries.map(([k,v]) => `<tr><td>${escapeHtml(k)}</td><td class="num-cell">${v}</td></tr>`).join('');
+}
+
+async function loadStats(){
+  try{
+    const data = await apiGet('stats');
+    if(!data.ok){ showMsg(adminMsg, data.error || 'Không tải được thống kê.', false); return; }
+    document.getElementById('statTongHS').textContent = data.classStats.tongSoHocSinh;
+    document.getElementById('statTongLuotTra').textContent = data.tongLuotTra;
+    document.getElementById('statDaTraDu').textContent = data.soHsDaTraDu;
+    document.getElementById('statByLop').innerHTML = statRowsHtml(data.classStats.theoLop);
+    document.getElementById('statByKhoi').innerHTML = statRowsHtml(data.classStats.theoKhoi);
+    document.getElementById('statByMon').innerHTML = statRowsHtml(data.classStats.theoMon);
+    document.getElementById('statBySoMon').innerHTML = statRowsHtml(data.classStats.theoSoMon);
+  }catch(err){
+    showMsg(adminMsg, 'Lỗi kết nối khi tải thống kê.', false);
+  }
+}
+
+
 const tableBody = document.getElementById('tableBody');
 const rowCount = document.getElementById('rowCount');
 const adminMsg = document.getElementById('adminMsg');
