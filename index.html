@@ -213,6 +213,13 @@
   .stat-table-box table{border:none;border-radius:0;}
   .stat-table-box td,.stat-table-box th{padding:8px 14px;font-size:13px;}
   .stat-table-box td.num-cell{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--navy);}
+  .stat-table-box tr.khoi-row td{background:#EEF2FA;font-weight:700;color:var(--navy-2);font-family:'Baloo 2',sans-serif;}
+  .pie-chart-stage{padding:14px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .pie-legend{display:flex;flex-direction:column;gap:7px;flex:1;min-width:140px;}
+  .pie-legend-item{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+  .pie-swatch{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+  .pie-legend-item .pie-label{color:var(--ink);font-weight:600;}
+  .pie-legend-item .pie-val{margin-left:auto;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
   .section-toggle{display:flex;gap:8px;margin-bottom:16px;}
   .section-toggle button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:9px 16px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
   .section-toggle button.active{background:var(--navy);border-color:var(--navy);color:#fff;}
@@ -295,19 +302,20 @@
       </div>
 
       <div id="statsSection" class="stats-wrap" style="display:none;">
+        <div class="toolbar" style="margin-bottom:14px;">
+          <span class="row-count" id="statsUpdatedAt"></span>
+          <div class="grow"></div>
+          <button class="btn secondary" id="refreshStatsBtn">↻ Cập nhật bảng/biểu đồ</button>
+        </div>
         <div class="stats-grid">
           <div class="stat-card"><div class="num" id="statTongHS">0</div><div class="lbl">Tổng số học sinh</div></div>
           <div class="stat-card"><div class="num" id="statTongLuotTra">0</div><div class="lbl">Tổng lượt tra cứu</div></div>
           <div class="stat-card"><div class="num" id="statDaTraDu">0</div><div class="lbl">HS đã tra đủ họ tên</div></div>
         </div>
         <div class="stats-tables">
-          <div class="stat-table-box">
-            <h4>Theo lớp</h4>
-            <table><tbody id="statByLop"></tbody></table>
-          </div>
-          <div class="stat-table-box">
-            <h4>Theo khối</h4>
-            <table><tbody id="statByKhoi"></tbody></table>
+          <div class="stat-table-box" style="grid-column:1 / -1;">
+            <h4>Số lượng học sinh theo Khối &amp; Lớp / Giáo viên</h4>
+            <table><tbody id="statByKhoiLop"></tbody></table>
           </div>
           <div class="stat-table-box">
             <h4>Theo môn</h4>
@@ -315,7 +323,7 @@
           </div>
           <div class="stat-table-box">
             <h4>Số môn học / học sinh</h4>
-            <table><tbody id="statBySoMon"></tbody></table>
+            <div class="pie-chart-stage" id="pieChartStage"></div>
           </div>
         </div>
       </div>
@@ -530,6 +538,73 @@ function statRowsHtml(obj){
   return entries.map(([k,v]) => `<tr><td>${escapeHtml(k)}</td><td class="num-cell">${v}</td></tr>`).join('');
 }
 
+function khoiLopRowsHtml(byKhoiVaLop){
+  const khois = Object.keys(byKhoiVaLop).sort((a,b) => {
+    const na = parseInt(a,10), nb = parseInt(b,10);
+    if(!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a).localeCompare(String(b));
+  });
+  if(khois.length === 0) return `<tr><td colspan="2" style="color:var(--ink-soft);">Chưa có dữ liệu</td></tr>`;
+  let html = '';
+  khois.forEach(khoi => {
+    const lopMap = byKhoiVaLop[khoi];
+    const tongKhoi = Object.values(lopMap).reduce((a,b) => a+b, 0);
+    html += `<tr class="khoi-row"><td>Khối ${escapeHtml(khoi)}</td><td class="num-cell">${tongKhoi} học sinh</td></tr>`;
+    const lopEntries = Object.entries(lopMap).sort((a,b) => b[1]-a[1]);
+    lopEntries.forEach(([lop, count]) => {
+      html += `<tr><td style="padding-left:26px;">${escapeHtml(lop)}</td><td class="num-cell">${count}</td></tr>`;
+    });
+  });
+  return html;
+}
+
+const PIE_COLORS = ['#1B4D8C','#E07B39','#5B9BD5','#2F7A52','#C0601F','#0F2D5C','#9FB6D9','#B23A3A'];
+
+function renderPieChart(soMonObj){
+  const stage = document.getElementById('pieChartStage');
+  const order = ['1','2','3','4+'];
+  const entries = order
+    .filter(k => soMonObj[k] !== undefined)
+    .map(k => [k, soMonObj[k]])
+    .concat(Object.entries(soMonObj).filter(([k]) => !order.includes(k)));
+  const total = entries.reduce((sum,[,v]) => sum+v, 0);
+  if(total === 0){
+    stage.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Chưa có dữ liệu</p>`;
+    return;
+  }
+  const cx = 70, cy = 70, r = 65;
+  let angleStart = -90;
+  let paths = '';
+  entries.forEach(([label, value], i) => {
+    const pct = value / total;
+    const angleEnd = angleStart + pct * 360;
+    const large = (angleEnd - angleStart) > 180 ? 1 : 0;
+    const x1 = cx + r * Math.cos(angleStart * Math.PI/180);
+    const y1 = cy + r * Math.sin(angleStart * Math.PI/180);
+    const x2 = cx + r * Math.cos(angleEnd * Math.PI/180);
+    const y2 = cy + r * Math.sin(angleEnd * Math.PI/180);
+    const color = PIE_COLORS[i % PIE_COLORS.length];
+    if(pct >= 0.9999){
+      paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"></circle>`;
+    } else {
+      paths += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${color}"></path>`;
+    }
+    angleStart = angleEnd;
+  });
+  const legend = entries.map(([label, value], i) => {
+    const pct = ((value/total)*100).toFixed(1);
+    const lbl = label === '4+' ? 'Từ 4 môn' : (label === '1' ? '1 môn' : label + ' môn');
+    return `<div class="pie-legend-item">
+      <span class="pie-swatch" style="background:${PIE_COLORS[i % PIE_COLORS.length]};"></span>
+      <span class="pie-label">${escapeHtml(lbl)}</span>
+      <span class="pie-val">${value} HS · ${pct}%</span>
+    </div>`;
+  }).join('');
+  stage.innerHTML = `
+    <svg width="140" height="140" viewBox="0 0 140 140">${paths}</svg>
+    <div class="pie-legend">${legend}</div>`;
+}
+
 async function loadStats(){
   try{
     const data = await apiGet('stats');
@@ -537,14 +612,24 @@ async function loadStats(){
     document.getElementById('statTongHS').textContent = data.classStats.tongSoHocSinh;
     document.getElementById('statTongLuotTra').textContent = data.tongLuotTra;
     document.getElementById('statDaTraDu').textContent = data.soHsDaTraDu;
-    document.getElementById('statByLop').innerHTML = statRowsHtml(data.classStats.theoLop);
-    document.getElementById('statByKhoi').innerHTML = statRowsHtml(data.classStats.theoKhoi);
+    document.getElementById('statByKhoiLop').innerHTML = khoiLopRowsHtml(data.classStats.theoKhoiVaLop || {});
     document.getElementById('statByMon').innerHTML = statRowsHtml(data.classStats.theoMon);
-    document.getElementById('statBySoMon').innerHTML = statRowsHtml(data.classStats.theoSoMon);
+    renderPieChart(data.classStats.theoSoMon || {});
+    const now = new Date();
+    document.getElementById('statsUpdatedAt').textContent = `Cập nhật lúc ${now.toLocaleTimeString('vi-VN')}`;
   }catch(err){
     showMsg(adminMsg, 'Lỗi kết nối khi tải thống kê.', false);
   }
 }
+
+document.getElementById('refreshStatsBtn').onclick = async () => {
+  const btn = document.getElementById('refreshStatsBtn');
+  btn.disabled = true; btn.textContent = 'Đang cập nhật…';
+  await loadStudents();
+  await loadStats();
+  btn.disabled = false; btn.textContent = '↻ Cập nhật bảng/biểu đồ';
+  showMsg(adminMsg, 'Đã cập nhật bảng và biểu đồ mới nhất.', true);
+};
 
 
 const tableBody = document.getElementById('tableBody');
@@ -621,6 +706,7 @@ document.getElementById('addRowBtn').onclick = async () => {
 
 document.getElementById('syncBtn').onclick = async () => {
   await loadStudents();
+  if(statsSection.style.display !== 'none'){ await loadStats(); }
   showMsg(adminMsg, 'Đã đồng bộ dữ liệu mới nhất từ Google Sheet.', true);
 };
 
