@@ -231,7 +231,7 @@
         <p>Dùng tài khoản trong trang tính "TaiKhoan" của Google Sheet.</p>
         <div class="config-box">
           <label>Apps Script Web App URL (kết thúc bằng /exec)</label>
-          <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+          <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/XXXXX/exec" value="https://script.google.com/macros/s/AKfycbxXmilBU0Jo83MZ4gQlw_M_RLDkJ8ohKS_WLvNq6SeE-gh74Q9nd-wijS4ACzXKi8_61g/exec">
         </div>
         <div class="field-stack">
           <input type="text" id="loginUser" placeholder="Tên đăng nhập">
@@ -276,7 +276,7 @@
 </div>
 
 <script>
-let API_URL = "";
+let API_URL = "https://script.google.com/macros/s/AKfycbxXmilBU0Jo83MZ4gQlw_M_RLDkJ8ohKS_WLvNq6SeE-gh74Q9nd-wijS4ACzXKi8_61g/exec";
 let students = [];
 let session = null; // {username, password}
 
